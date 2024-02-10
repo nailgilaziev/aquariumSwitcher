@@ -28,6 +28,8 @@ void blink(int count, int time = 50)
   }
 }
 
+
+
 /// правила для включения и выключения в течении суток
 typedef struct
 {
@@ -38,6 +40,47 @@ typedef struct
 
 #define PORTS_COUNT 4
 portData ports[PORTS_COUNT];
+
+// template 
+// port/ruleType-rule1,rule2
+// 1/ON-12:15,12:17
+// 1/OFF-12:15,12:17
+// 2/ON-12:15
+// можно строчки комментить используя // 
+bool parseRules(String resp)
+{
+  char charBuf[400];
+  resp.toCharArray(charBuf, 400);
+  char *cur = strtok(charBuf, "\n");
+  while (cur != NULL)
+  {
+    String line = String(cur);
+    cur = strtok(NULL, "\n");
+    Serial.println("parse line: " + line);
+    if(line.startsWith("//")) continue;
+    if(line.length() < 10) return false;
+    if(line.indexOf("/") < 0) return false;
+    if(line.indexOf("-") < 0) return false;
+    if(line.indexOf(":") < 0) return false;
+    String str = line.substring(0, 1);
+    Serial.println("substr:"+str);
+    int portIndex = line.substring(0, 1).toInt();
+    Serial.println("portIndex: " + String(portIndex));
+    String rules = line.substring(line.indexOf("-") + 1);
+    String ruleType = line.substring(2, 4);
+    if (ruleType == "ON")
+    {
+      ports[portIndex].onRules = rules;
+      Serial.println("on rules: " + rules);
+    }
+    else
+    {
+      ports[portIndex].offRules = rules;
+      Serial.println("off rules: " + rules);
+    }
+  }
+  return true;
+}
 
 void setup()
 {
@@ -76,7 +119,7 @@ void setup()
   WiFiClientSecure wifiClient;
   wifiClient.setInsecure();
   HTTPClient http;
-  http.begin(wifiClient, "https://raw.githubusercontent.com/arduino-libraries/NTPClient/master/examples/Advanced/Advanced.ino");
+  http.begin(wifiClient, "https://raw.githubusercontent.com/nailgilaziev/aquariumSwitcher/main/ports.rules");
 
   int portsInitializationStatusCode = 0;
   while (portsInitializationStatusCode != 200)
@@ -107,42 +150,7 @@ void setup()
   http.end();
 }
 
-// template 
-// port/ruleType-rule1,rule2
-// 1/ON-12:15,12:17
-// 1/OFF-12:15,12:17
-// 2/ON-12:15
-// можно строчки комментить используя // 
-bool parseRules(String resp)
-{
-  char charBuf[400];
-  resp.toCharArray(charBuf, 400);
-  char *cur = strtok(charBuf, "\n");
-  while (cur != NULL)
-  {
-    String line = String(cur);
-    Serial.println("parse line: " + line);
-    if(line.length() < 10) return false;
-    if(line.indexOf("/") < 0) return false;
-    if(line.indexOf("-") < 0) return false;
-    if(line.indexOf(":") < 0) return false;
-    if(line.startsWith("//")) continue;
-    int portIndex = line.substring(0, 1).toInt();
-    Serial.println("portIndex: " + portIndex);
-    String rules = line.substring(line.indexOf("-") + 1);
-    String ruleType = line.substring(2, 4);
-    if (ruleType == "ON")
-    {
-      ports[portIndex].onRules = rules;
-      Serial.println("on rules: " + rules);
-    }
-    else
-    {
-      ports[portIndex].offRules = rules;
-      Serial.println("off rules: " + rules);
-    }
-  }
-}
+
 
 void loop()
 {
