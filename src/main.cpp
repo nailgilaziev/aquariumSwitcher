@@ -14,16 +14,16 @@
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "ru.pool.ntp.org", TIMEZONE_MSK_OFFSET_SECONDS, DAYMS);
 
-void blink(int count, int time = 50)
+void blink(int count, int onTime = 100, int offTime = 300)
 {
   for (int i = 0; i < count; i++)
   {
     digitalWrite(WIFI_STATUS_LED_PIN, LOW);
-    delay(time);
+    delay(onTime);
     digitalWrite(WIFI_STATUS_LED_PIN, HIGH);
     if (i != count - 1)
     {
-      delay(time * 2);
+      delay(offTime);
     }
   }
 }
@@ -116,14 +116,13 @@ String fetchPortIntervalsData()
   WiFiClientSecure wifiClient;
   wifiClient.setInsecure();
   HTTPClient http;
-  http.begin(wifiClient, "https://raw.githubusercontent.com/nailgilaziev/aquariumSwitcher/main/ports.yaml");
+  http.begin(wifiClient, "https://nailgilaziev.github.io/aquariumSwitcher/ports.yaml");
 
   int portsInitializationStatusCode = http.GET();
   if (portsInitializationStatusCode != 200)
   {
     Serial.print("Error status code: ");
     Serial.println(portsInitializationStatusCode);
-    blink(4);
     return "";
   }
 
@@ -190,18 +189,18 @@ void setup()
   while (!timeClient.isTimeSet())
   {
     Serial.println("Time sync error");
-    blink(3, 30);
+    blink(3);
     timeClient.update();
-    delay(10000);
+    delay(5000);
   }
   Serial.println("Time synced!");
   String yaml = fetchPortIntervalsData();
   while (yaml.isEmpty())
   {
     Serial.println("Fetch intervals error");
-    blink(4, 30);
+    blink(4);
     yaml = fetchPortIntervalsData();
-    delay(10000);
+    delay(5000);
   }
   Serial.println("Interval yaml fetched!");
   parsePortIntervals(yaml);
