@@ -51,45 +51,62 @@ void parsePortIntervals(String yaml)
     remainingText = remainingText.substring(lineEndIndex + 1);
     lineEndIndex = remainingText.indexOf("\n");
 
-    Serial.println("Parse line: " + line);
+    Serial.print(line);
+    for (int i = line.length(); i < 20; i++)
+    {
+      Serial.print(" ");
+    }
+    
     if (line.startsWith("#"))
     {
-      Serial.println("  comment skipped");
+      Serial.println("SKIP: is comment line");
       continue;
     }
-    if (line.startsWith("port") && line.length() == 5)
+    if (line.startsWith("port") && line.length() >= 6)
     {
       portIndex = line.substring(4, 5).toInt();
       portIntervalIndex = 0;
-      Serial.println("  portIndex: " + String(portIndex));
+      Serial.println("PARSED: portIndex=" + String(portIndex));
       continue;
     }
-    if (line.startsWith("  - '") && line.length() != 17)
+    if (portIndex == -1)
     {
-      Serial.println("  skipped: startWith or length incorrect");
+      Serial.println("SKIP: port index should be set first");
       continue;
     }
-    if (portIntervalIndex > 0)
+    if (!line.startsWith("  - '"))
     {
-      Serial.println("  skipped: startWith or length incorrect");
+      Serial.println("SKIP: startWith incorrect");
+      continue;
+    }
+    if (line.length() != 17)
+    {
+      Serial.println("SKIP: length incorrect");
       continue;
     }
     String interval = line.substring(5);
     if (portIntervalIndex >= 10)
     {
-      Serial.println("  skipped: only 10 intervals allowed. Current=" + String(portIntervalIndex));
+      Serial.println("SKIP: only 10 intervals allowed. current=" + String(portIntervalIndex));
       portIntervalIndex++;
       continue;
     }
-    portData port = ports[portIndex];
-    port.onIntervals[portIntervalIndex] = interval;
+    // portData port = ports[portIndex];
+    Serial.print("[before=");
+    Serial.print(ports[portIndex].onIntervals[portIntervalIndex]);
+    Serial.print("] ");
+    ports[portIndex].onIntervals[portIntervalIndex] = interval;
+    Serial.print("[after=");
+    Serial.print(ports[portIndex].onIntervals[portIntervalIndex]);
+    Serial.print("] ");
+  
     int ah = interval.substring(0, 2).toInt();
     int am = interval.substring(3, 5).toInt();
     int bh = interval.substring(6, 8).toInt();
     int bm = interval.substring(9).toInt();
-    Serial.printf("mins interval %d*60 + %d - %d*60 + %d", ah, am, bh, bm);
-    port.onIntervalsMins[portIntervalIndex][0] = ah * 60 + am;
-    port.onIntervalsMins[portIntervalIndex][1] = bh * 60 + bm;
+    Serial.printf("PARSED: interval in mins %d*60 + %d - %d*60 + %d\n", ah, am, bh, bm);
+    ports[portIndex].onIntervalsMins[portIntervalIndex][0] = ah * 60 + am;
+    ports[portIndex].onIntervalsMins[portIntervalIndex][1] = bh * 60 + bm;
     portIntervalIndex++;
   }
 }
@@ -111,7 +128,7 @@ String fetchPortIntervalsData()
   }
 
   String payload = http.getString();
-  Serial.println(payload);
+  //Serial.println(payload);
   http.end();
   wifiClient.stop();
   return payload;
@@ -124,13 +141,17 @@ void printPorts()
   for (int i = 0; i < PORTS_COUNT; i++)
   {
     portData port = ports[i];
-    Serial.println(String(port.pin) + "|" + (i));
+    Serial.print("PORT " + String(i) + "   ");
     for (int i = 0; i < 10; i++)
     {
-      Serial.println(port.onIntervals[i]);
-      Serial.println(String(port.onIntervalsMins[i][0]) + "-" + String(port.onIntervalsMins[i][1]));
-      Serial.println();
+      String onInterval = port.onIntervals[i];
+      if(onInterval==NULL) continue;
+      Serial.print(onInterval);
+      Serial.print("(");
+      Serial.print(String(port.onIntervalsMins[i][0]) + "-" + String(port.onIntervalsMins[i][1]));
+      Serial.print(") ");
     }
+    Serial.println();
   }
 }
 
@@ -153,7 +174,7 @@ void setup()
 
   WiFi.begin(WIFI_NAME, WIFI_PASSWORD);
   Serial.print("Connecting...");
-  /// надо обязательно подключиться, чтобы получить текущее время. 
+  /// надо обязательно подключиться, чтобы получить текущее время.
   while (WiFi.status() != WL_CONNECTED)
   {
     blink(1, 250);
@@ -169,21 +190,22 @@ void setup()
   while (!timeClient.isTimeSet())
   {
     Serial.println("Time sync error");
-    blink(3,30);
+    blink(3, 30);
     timeClient.update();
-    delay(1000);
-    return;
+    delay(10000);
   }
+  Serial.println("Time synced!");
   String yaml = fetchPortIntervalsData();
   while (yaml.isEmpty())
   {
     Serial.println("Fetch intervals error");
-    blink(4,30);
+    blink(4, 30);
     yaml = fetchPortIntervalsData();
-    delay(1000);
-    return;
+    delay(10000);
   }
+  Serial.println("Interval yaml fetched!");
   parsePortIntervals(yaml);
+  Serial.println("Interval yaml parsed!");
   printPorts();
   Serial.println("------------------");
 }
@@ -207,13 +229,16 @@ void actualizePortsForTime(String hm)
       int b = port.onIntervalsMins[i][1];
       if (a <= curMins && curMins < b)
       {
-        Serial.println("interval "+interval+" is active");
+        Serial.println("interval " + interval + " is active");
         shouldBeOn = true;
       }
     }
-    if(shouldBeOn){
+    if (shouldBeOn)
+    {
       digitalWrite(port.pin, LOW);
-    } else {
+    }
+    else
+    {
       digitalWrite(port.pin, HIGH);
     }
   }
